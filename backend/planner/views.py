@@ -86,8 +86,9 @@ class PlanView(APIView):
                     "stops": sum(e.kind not in ("drive", "pickup", "dropoff") for e in events),
                 },
                 "warnings": [
+                    "Departure and route-leg driving durations are rounded up to 15-minute increments; stops may occur early to preserve planning limits.",
                     "Planned logs, not a record of actual duty. Before and after the trip, off-duty time is assumed.",
-                    "Prior cycle hours are retained until a 34-hour restart. Historical daily recaps are not calculated.",
+                    "Prior cycle hours are retained until a 34-hour sleeper-berth restart. Historical daily recaps are not calculated.",
                     "Road routing uses a car profile, not verified truck restrictions. Driving estimates use a 55 mph ceiling and exclude live traffic.",
                     "Fuel and rest markers are approximate points along the route, not verified facilities. Confirm safe stopping locations before travel.",
                     "Daily mileage is estimated by apportioning each continuous driving period by time.",

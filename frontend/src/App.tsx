@@ -264,10 +264,16 @@ export default function App() {
                   value={departure}
                   disabled={busy}
                   onChange={(e) => {
-                    setDeparture(e.target.value);
+                    const value = e.target.value;
+                    if (value) {
+                      const date = new Date(`${value}Z`);
+                      date.setUTCMinutes(Math.ceil(date.getUTCMinutes() / 15) * 15, 0, 0);
+                      setDeparture(date.toISOString().slice(0, 16));
+                    } else setDeparture(value);
                     changed();
                   }}
-                  slotProps={{ inputLabel: { shrink: true } }}
+                  helperText="15-minute intervals; rounded up when needed"
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 900 } }}
                 />
                 <TextField
                   fullWidth
@@ -587,7 +593,8 @@ export default function App() {
             <h3>Stops and route estimates</h3>
             <p>
               Pickup and delivery each take one hour. The truck starts fueled; a 30-minute fuel stop
-              is scheduled at most every 1,000 miles. Rest is recorded off duty. No split-sleeper or
+              is scheduled at most every 1,000 miles. Scheduled 10-hour rests and 34-hour restarts
+              are recorded in the sleeper berth; shorter breaks remain off duty. No split-sleeper or
               special exceptions are used.
             </p>
             <p>

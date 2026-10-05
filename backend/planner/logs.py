@@ -20,7 +20,7 @@ def daily_logs(events: list[Event], zone_name: str) -> list[dict]:
         totals = {"off_duty": 0.0, "sleeper": 0.0, "driving": 0.0, "on_duty": 0.0}
         miles = 0.0
         cursor = start
-        for event in events:
+        for event_index, event in enumerate(events):
             left, right = max(start, event.start), min(end, event.end)
             if right <= left:
                 continue
@@ -31,7 +31,8 @@ def daily_logs(events: list[Event], zone_name: str) -> list[dict]:
                         "status": "off_duty",
                         "start_minute": (cursor - start).total_seconds() / 60,
                         "end_minute": (left - start).total_seconds() / 60,
-                        "location": "Assumed off duty before departure",
+                        "location": events[0].location,
+                        "reason": "Assumed off duty before departure",
                         "kind": "padding",
                     }
                 )
@@ -44,6 +45,10 @@ def daily_logs(events: list[Event], zone_name: str) -> list[dict]:
                     "end_minute": (right - start).total_seconds() / 60,
                     "location": event.location,
                     "kind": event.kind,
+                    "reason": event.reason,
+                    "duty_change": event_index > 0
+                    and events[event_index - 1].status != event.status
+                    and event.start == left,
                     "continues": event.start < start,
                 }
             )
@@ -61,7 +66,8 @@ def daily_logs(events: list[Event], zone_name: str) -> list[dict]:
                     "status": "off_duty",
                     "start_minute": (cursor - start).total_seconds() / 60,
                     "end_minute": 1440,
-                    "location": "Assumed off duty after trip completion",
+                    "location": events[-1].location,
+                    "reason": "Assumed off duty after trip completion",
                     "kind": "padding",
                 }
             )

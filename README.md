@@ -42,7 +42,7 @@ npm run build
 
 Choose one of the three sample trips or search for locations in the contiguous United States. Select a search result for each location, enter cycle hours (0–70), and generate the plan. Trip settings contain departure time, terminal time zone, and optional log details. Select an itinerary event to inspect its reason and map location. The daily logs tab shows each day; Download logs exports all sheets as a vector PDF. Browser printing is also supported.
 
-The planning guide in the app explains the supported HOS rules and assumptions. Outputs are planned logs, not signed records of actual duty. A 34-hour restart is used when the aggregate cycle balance prevents further driving. Historical recaps, truck restrictions, verified stopping facilities, and daylight-saving transition days are not supported. Public providers may be unavailable; the application reports provider failures instead of substituting fabricated routes.
+The planning guide in the app explains the supported HOS rules and assumptions. Outputs are planned logs, not signed records of actual duty. Scheduled 10-hour rests and 34-hour restarts use sleeper-berth status; shorter breaks use off-duty status. A 34-hour restart is used when the aggregate cycle balance prevents further driving. Historical recaps, truck restrictions, verified stopping facilities, and daylight-saving transition days are not supported. Public providers may be unavailable; the application reports provider failures instead of substituting fabricated routes.
 
 ## Hosted configuration
 
@@ -58,4 +58,3 @@ Both deployments must be created from the owner's private GitHub repository. Env
 - [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
 - [Photon](https://github.com/komoot/photon) for address search
 - [OSRM](https://project-osrm.org/) for road routing
-

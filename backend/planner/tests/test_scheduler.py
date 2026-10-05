@@ -61,6 +61,7 @@ class SchedulingTests(TestCase):
         events = plan(12, 1)
         rest = next(e for e in events if e.kind == "rest")
         self.assertEqual((rest.end - rest.start).total_seconds(), 10 * 3600)
+        self.assertEqual(rest.status, "sleeper")
         self.assertGreater(rest.cycle_used, 0)
         self.assertFalse(validate_schedule(events, 0))
 
@@ -68,6 +69,7 @@ class SchedulingTests(TestCase):
         events = plan(4, 2, cycle=68)
         self.assertEqual(events[0].miles, 100)
         self.assertEqual(events[1].kind, "restart")
+        self.assertEqual(events[1].status, "sleeper")
         self.assertEqual(events[1].cycle_used, 0)
         self.assertEqual((events[1].end - events[1].start).total_seconds(), 34 * 3600)
         self.assertFalse(validate_schedule(events, 68))
@@ -140,3 +142,41 @@ class SchedulingTests(TestCase):
         events = plan(0, 0)
         self.assertEqual([e.kind for e in events], ["pickup", "dropoff"])
         self.assertFalse(validate_schedule(events, 0))
+
+    def test_quarter_hour_schedule_preserves_miles_and_limits(self):
+        events = plan(
+            7.03, 15.11, cycle=68.93, start=START + timedelta(minutes=3, seconds=17), speed=53
+        )
+        self.assertEqual(events[0].start, START + timedelta(minutes=15))
+        for event in events:
+            self.assertEqual(event.start.minute % 15, 0)
+            self.assertEqual(event.end.minute % 15, 0)
+            self.assertEqual(event.start.second, 0)
+            self.assertEqual(event.end.second, 0)
+        self.assertAlmostEqual(sum(e.miles for e in events), (7.03 + 15.11) * 53)
+        self.assertFalse(validate_schedule(events, 68.93))
+        for log in daily_logs(events, "America/Chicago"):
+            self.assertAlmostEqual(sum(log["totals"].values()), 24)
+            for entry in log["entries"]:
+                self.assertEqual(entry["start_minute"] % 15, 0)
+                self.assertEqual(entry["end_minute"] % 15, 0)
+
+    def test_rounds_whole_leg_not_individual_road_steps(self):
+        route = legs(0, 0)
+        route[0].segments.extend([Segment(60, 0.5, [A, B], "Road")] * 17)
+        events = Scheduler(START, 0, A, "Dallas").plan(route)
+        self.assertEqual((events[0].end - events[0].start).total_seconds(), 1800)
+        self.assertAlmostEqual(events[0].miles, 8.5)
+
+    def test_daily_entries_retain_reason_and_midnight_transition(self):
+        events = plan(1, 1, start=datetime(2026, 10, 6, 4, tzinfo=timezone.utc))
+        logs = daily_logs(events, "America/Chicago")
+        midnight = logs[1]["entries"][0]
+        self.assertEqual(midnight["kind"], "pickup")
+        self.assertTrue(midnight["duty_change"])
+        self.assertIn("loading", midnight["reason"])
+        continued = daily_logs(
+            plan(9, 1, start=datetime(2026, 10, 6, 4, tzinfo=timezone.utc)), "America/Chicago"
+        )[1]["entries"][0]
+        self.assertTrue(continued["continues"])
+        self.assertFalse(continued["duty_change"])

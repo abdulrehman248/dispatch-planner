@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { DutyStatus, TripPlan } from './types';
+import { activity, logRemarks } from './logRemarks';
 import { duration } from './format';
 
 type PrintablePlan = Pick<TripPlan, 'logs' | 'metadata' | 'locations' | 'warnings' | 'timezone'>;
@@ -100,15 +101,62 @@ export function createLogPdf(plan: PrintablePlan) {
         );
       doc.line(x(entry.start_minute), y(entry.status), x(entry.end_minute), y(entry.status));
     });
-    text('One calendar day - 24 hours', gridX + gridWidth - 133, gridY + row * 4 + 16, 8);
-    text('24h 00m', gridX + gridWidth + 12, gridY + row * 4 + 16, 9, true);
-    text('REMARKS / DUTY CHANGES', 32, 332, 9, true);
-    let top = 352;
+    const { changes, notes } = logRemarks(log);
+    changes.forEach((entry) => {
+      const markerX = x(entry.start_minute);
+      const markerY = gridY + row * 4 + 8;
+      doc.setDrawColor(32, 113, 94);
+      doc.setFillColor(32, 113, 94);
+      doc.setLineWidth(1);
+      doc.line(markerX, gridY + row * 4, markerX, markerY);
+      doc.roundedRect(markerX - 2, markerY, 4, 4, 0.75, 0.75, 'F');
+    });
+    text('One calendar day - 24 hours', gridX + gridWidth - 133, gridY + row * 4 + 22, 8);
+    text('24h 00m', gridX + gridWidth + 12, gridY + row * 4 + 22, 9, true);
+    notes.forEach((note) => {
+      const left = x(note.start),
+        right = x(note.end);
+      const bracketY = 315;
+      doc.setDrawColor(32, 113, 94);
+      doc.setLineWidth(1.5);
+      doc.line(left, bracketY - 14, left, bracketY);
+      doc.line(left, bracketY, right, bracketY);
+      doc.line(right, bracketY, right, bracketY - 14);
+      doc.line(left, bracketY, left - 90, bracketY + 90);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(40, 57, 46);
+      const angledText = (value: string, normal: number) => {
+        let label = printable(value);
+        while (doc.getTextWidth(label) > 120 && label.length > 3)
+          label = label.slice(0, -4) + '...';
+        const along = doc.getTextWidth(label) + 5;
+        doc.text(
+          label,
+          left - (along - normal) / Math.SQRT2,
+          bracketY + (along + normal) / Math.SQRT2,
+          { angle: 45 },
+        );
+      };
+      angledText(note.location, -6);
+      doc.setFont('helvetica', 'normal');
+      angledText(note.label, 12);
+    });
+    let top = notes.length ? 445 : 332;
+    text('REMARKS / DUTY CHANGES', 32, top, 9, true);
+    top += 20;
     log.entries.forEach((entry) => {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      const lines: string[] = doc.splitTextToSize(printable(entry.location), width - 200);
-      const lineHeight = Math.max(18, lines.length * 12 + 6);
+      const lines: string[] = doc.splitTextToSize(
+        printable(`${entry.location}${entry.reason ? ' - ' + entry.reason : ''}`),
+        width - 200,
+      );
+      const activityLines: string[] = doc.splitTextToSize(
+        printable(`${entry.continues ? 'Cont. ' : ''}${activity(entry)}`),
+        84,
+      );
+      const lineHeight = Math.max(18, Math.max(lines.length, activityLines.length) * 12 + 6);
       if (top + lineHeight > height - 80) {
         footer();
         doc.addPage();
@@ -116,12 +164,7 @@ export function createLogPdf(plan: PrintablePlan) {
         top = 65;
       }
       text(clockMinute(entry.start_minute), 32, top, 9);
-      text(
-        `${entry.continues ? 'Cont. ' : ''}${entry.kind === 'padding' ? 'Off duty' : entry.kind}`,
-        80,
-        top,
-        9,
-      );
+      text(activityLines.join('\n'), 80, top, 9);
       text(lines.join('\n'), 172, top, 9);
       top += lineHeight;
     });

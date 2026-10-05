@@ -26,6 +26,8 @@ export type LogEntry = {
   location: string;
   kind: EventKind | 'padding';
   continues?: boolean;
+  reason?: string;
+  duty_change?: boolean;
 };
 export type DailyLog = {
   date: string;

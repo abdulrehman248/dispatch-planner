@@ -6,11 +6,42 @@ usage never earns an inferred recap. A 34-hour restart clears that usage.
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from math import ceil
 
-from .domain import Leg, Point
+from .domain import Leg, Point, Segment
 
 HOUR = 3600
 EPSILON = 1e-6
+QUARTER = 15 * 60
+
+
+def quarter_segments(segments):
+    """Resample a whole leg into quarter hours without rounding each road step."""
+    total = sum(segment.seconds for segment in segments)
+    if total <= 0:
+        return []
+    count = ceil(total / QUARTER - EPSILON)
+    source_step = total / count
+    result = []
+    index = 0
+    offset = 0.0
+    for tick in range(count):
+        remaining = source_step
+        miles = 0.0
+        origin = segments[index].point_at(offset / segments[index].seconds)
+        while remaining > EPSILON:
+            segment = segments[index]
+            take = min(remaining, segment.seconds - offset)
+            miles += segment.miles * take / segment.seconds
+            offset += take
+            remaining -= take
+            endpoint = segment.point_at(offset / segment.seconds)
+            road = segment.road
+            if offset >= segment.seconds - EPSILON and index < len(segments) - 1:
+                index += 1
+                offset = 0.0
+        result.append(Segment(QUARTER, miles, [origin, endpoint], road))
+    return result
 
 
 @dataclass
@@ -38,7 +69,8 @@ class Event:
 
 class Scheduler:
     def __init__(self, departure: datetime, cycle_hours: float, origin: Point, label: str):
-        self.now = departure
+        remainder = departure.timestamp() % QUARTER
+        self.now = departure + timedelta(seconds=QUARTER - remainder if remainder else 0)
         self.cycle = cycle_hours * HOUR
         self.shift_start: datetime | None = None
         self.driving = 0.0
@@ -67,10 +99,10 @@ class Scheduler:
         elif seconds >= 30 * 60 - EPSILON:
             self.since_break = 0.0
         self.now += timedelta(seconds=seconds)
-        if status == "off_duty" and seconds >= 10 * HOUR:
+        if status in ("off_duty", "sleeper") and seconds >= 10 * HOUR:
             self.shift_start = None
             self.driving = 0.0
-        if status == "off_duty" and seconds >= 34 * HOUR:
+        if status in ("off_duty", "sleeper") and seconds >= 34 * HOUR:
             self.cycle = 0.0
         if kind == "fuel":
             self.since_fuel = 0.0
@@ -110,12 +142,12 @@ class Scheduler:
         )
 
     def prepare_to_drive(self):
-        if self.cycle >= 70 * HOUR - EPSILON:
+        if self.cycle > 70 * HOUR - QUARTER + EPSILON:
             self.add(
                 "restart",
-                "off_duty",
+                "sleeper",
                 34 * HOUR,
-                "Cycle capacity exhausted. A 34-hour restart restores 70 hours; no historical recaps are assumed.",
+                "Insufficient cycle capacity for another 15-minute driving interval. A 34-hour sleeper-berth restart restores 70 hours; no historical recaps are assumed.",
             )
         elif self.driving >= 11 * HOUR - EPSILON or self.shift_elapsed >= 14 * HOUR - EPSILON:
             reason = (
@@ -123,7 +155,12 @@ class Scheduler:
                 if self.driving >= 11 * HOUR - EPSILON
                 else "14-hour driving window reached."
             )
-            self.add("rest", "off_duty", 10 * HOUR, reason + " Take 10 consecutive hours off duty.")
+            self.add(
+                "rest",
+                "sleeper",
+                10 * HOUR,
+                reason + " Take 10 consecutive hours in the sleeper berth.",
+            )
         elif self.since_fuel >= 1000 - EPSILON:
             self.add(
                 "fuel",
@@ -142,12 +179,22 @@ class Scheduler:
     def plan(self, legs: list[Leg]) -> list[Event]:
         for index, leg in enumerate(legs):
             self.leg_index = index
-            for segment in leg.segments:
+            for segment in quarter_segments(leg.segments):
                 consumed = 0.0
                 while consumed < segment.seconds - EPSILON:
                     # Recheck after an inserted event: fueling can exhaust the cycle or window.
                     before = len(self.events)
                     self.prepare_to_drive()
+                    if (
+                        len(self.events) == before
+                        and self.since_fuel + segment.miles > 1000 + EPSILON
+                    ):
+                        self.add(
+                            "fuel",
+                            "on_duty",
+                            30 * 60,
+                            "Fuel before the next 15-minute driving interval would exceed 1,000 miles.",
+                        )
                     if len(self.events) != before:
                         continue
                     speed = segment.miles / segment.seconds
@@ -200,7 +247,7 @@ def validate_schedule(events: list[Event], initial_cycle: float) -> list[str]:
         if seconds <= 0 or (previous_end is not None and event.start != previous_end):
             errors.append("Timeline has a gap, overlap, or nonpositive event.")
         previous_end = event.end
-        if event.status == "off_duty":
+        if event.status in ("off_duty", "sleeper"):
             off += seconds
             nondriving += seconds
             if off >= 10 * HOUR - 0.01:

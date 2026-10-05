@@ -1,3 +1,4 @@
+import { activity, logRemarks } from '../logRemarks';
 import type { DailyLog, DutyStatus, TripPlan } from '../types';
 import { dateLabel, duration, integer } from '../format';
 
@@ -19,6 +20,8 @@ export default function LogSheet({
   selected: number | null;
   onSelect: (id: number) => void;
 }) {
+  const { changes, notes } = logRemarks(log);
+  const graphHeight = notes.length ? 415 : 252;
   let path = '';
   log.entries.forEach((entry, index) => {
     path += `${index ? 'L' : 'M'}${x(entry.start_minute)} ${y(entry.status)} L${x(entry.end_minute)} ${y(entry.status)} `;
@@ -58,7 +61,7 @@ export default function LogSheet({
       <div className="grid-scroll">
         <svg
           className="log-grid"
-          viewBox="0 0 920 235"
+          viewBox={`0 0 920 ${graphHeight}`}
           role="img"
           aria-label={`24-hour duty status graph for ${log.date}`}
         >
@@ -95,6 +98,52 @@ export default function LogSheet({
             HOURS
           </text>
           <path d={path} fill="none" stroke="#20715e" strokeWidth="2.6" strokeLinejoin="round" />
+          {changes.map((entry, i) => (
+            <g key={`change-${i}`}>
+              <title>{`${activity(entry)} · ${entry.location} · ${entry.reason || ''}`}</title>
+              <line
+                x1={x(entry.start_minute)}
+                x2={x(entry.start_minute)}
+                y1="205"
+                y2="219"
+                stroke="#20715e"
+              />
+              <rect x={x(entry.start_minute) - 3} y="216" width="6" height="6" fill="#20715e" />
+            </g>
+          ))}
+          {notes.map((note, i) => {
+            const left = x(note.start),
+              right = x(note.end);
+            const compact = (value: string) =>
+              value.length > 29 ? value.slice(0, 26) + '…' : value;
+            return (
+              <g key={`note-${i}`}>
+                <title>{`${minuteLabel(note.start)}–${minuteLabel(note.end)} · ${note.location}: ${note.label}`}</title>
+                <path
+                  d={`M${left} 220 V238 H${right} V220`}
+                  fill="none"
+                  stroke="#20715e"
+                  strokeWidth="2"
+                />
+                <g transform={`translate(${left} 238) rotate(-45)`}>
+                  <line x1="-145" y1="0" x2="0" y2="0" stroke="#20715e" strokeWidth="2" />
+                  <text
+                    x="-6"
+                    y="-7"
+                    textAnchor="end"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="#32443c"
+                  >
+                    {compact(note.location)}
+                  </text>
+                  <text x="-6" y="14" textAnchor="end" fontSize="10" fill="#32443c">
+                    {compact(note.label)}
+                  </text>
+                </g>
+              </g>
+            );
+          })}
           {log.entries
             .filter((e) => e.event_id !== null)
             .map((entry, i) => (
@@ -124,10 +173,10 @@ export default function LogSheet({
                 </title>
               </g>
             ))}
-          <text x="830" y="226" textAnchor="end" fontSize="11" fill="#56665f">
+          <text x="830" y={graphHeight - 5} textAnchor="end" fontSize="11" fill="#56665f">
             One calendar day · 24 hours
           </text>
-          <text x="880" y="226" textAnchor="middle" fontSize="12" fontWeight="600">
+          <text x="880" y={graphHeight - 5} textAnchor="middle" fontSize="12" fontWeight="600">
             24h 00m
           </text>
         </svg>
@@ -142,11 +191,14 @@ export default function LogSheet({
             <span>{minuteLabel(entry.start_minute)}</span>
             <span>
               {entry.continues ? 'Continued · ' : ''}
-              {entry.kind === 'padding'
-                ? 'Off duty'
-                : entry.kind.replace('dropoff', 'Delivery').replace('pickup', 'Pickup')}
+              {activity(entry)}
             </span>
-            <span>{entry.location}</span>
+            <span>
+              {entry.location}
+              {entry.reason && (
+                <small style={{ display: 'block', marginTop: 3 }}>{entry.reason}</small>
+              )}
+            </span>
           </div>
         ))}
       </div>
