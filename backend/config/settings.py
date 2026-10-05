@@ -10,7 +10,7 @@ if not DEBUG and SECRET_KEY == "local-development-only-do-not-deploy":
     raise ImproperlyConfigured("Set SECRET_KEY in production or DEBUG=true locally.")
 ALLOWED_HOSTS=["*"]
 
-CORS_ALLOWED_ORIGINS = ["https://dispatch-planner-r0ygarzub-abd-s-team1.vercel.app/", "http://localhost:5173", "http://127.0.0.1:5173", "https://dispatch-planner-r0ygarzub-abd-s-team1.vercel.app"]
+CORS_ALLOWED_ORIGINS = ["https://dispatch-planner-r0ygarzub-abd-s-team1.vercel.app/", "http://localhost:5173", "http://127.0.0.1:5173", "https://dispatch-planner-fe.vercel.app/"]
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
