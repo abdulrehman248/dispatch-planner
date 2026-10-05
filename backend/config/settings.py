@@ -8,7 +8,7 @@ if not DEBUG and SECRET_KEY == "local-development-only-do-not-deploy":
     from django.core.exceptions import ImproperlyConfigured
 
     raise ImproperlyConfigured("Set SECRET_KEY in production or DEBUG=true locally.")
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,dispatch-planner-37vat1uba-abd-s-team1.vercel.app").split(",")
+ALLOWED_HOSTS=["*"]
 
 CORS_ALLOWED_ORIGINS = os.getenv(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
