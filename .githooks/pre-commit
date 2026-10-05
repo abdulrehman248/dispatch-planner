@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+for identity in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
+  ident=$(git var "$identity")
+  case "$ident" in
+    'Abdur Rehman <'*) ;;
+    *) echo 'Commit blocked: configure Abdur Rehman as both author and committer.' >&2; exit 1 ;;
+  esac
+done
+if git diff --cached --name-only | grep -E '(^|/)(\.local-notes/|\.env($|\.))' | grep -v '\.env\.example$' >/dev/null; then
+  echo 'Commit blocked: local documentation or private environment file is staged.' >&2
+  exit 1
+fi
