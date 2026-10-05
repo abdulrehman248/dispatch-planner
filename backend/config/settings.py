@@ -14,7 +14,13 @@ if os.getenv("RENDER_EXTERNAL_HOSTNAME"):
 CORS_ALLOWED_ORIGINS = os.getenv(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
-INSTALLED_APPS = ["django.contrib.contenttypes", "rest_framework", "corsheaders", "planner"]
+INSTALLED_APPS = [
+    "django.contrib.contenttypes",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "corsheaders",
+    "planner",
+]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
